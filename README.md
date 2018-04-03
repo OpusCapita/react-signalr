@@ -25,6 +25,7 @@ Also you need to configure sass loader, since all the styles are in sass format.
 | ------------------------ | ---------------- | ------------------------ | -------------------------------------------------------- |
 | hubName                  | string           | required                 | Name of the signalr hub                                  |
 | baseAddress              | string \| func   | required                 | Base address for signalr server                          |
+| accessTokenFactory       | func             |                          | Method for getting an access token                       |
 | signalrPath              | string           | 'signalr'                | Path to signalr hubs                                     |
 | controller               | string           | &lt;hubName&gt;          | Name of the controller (if different from hubName)       |
 
@@ -45,45 +46,55 @@ class MyComponent extends React.Component {
 
   // ... 
 
-  // Listeners may be registered in componentDidMount
+  // Listeners may be registered in componentDidMount (recommended).
   componentDidMount() {
-    // Hub proxy is found in this.props
+    // Hub proxy is found in this.props.
     const { mynotifier } = this.props;
     if (mynotifier) {
-      // Register this.inserted to listen 'inserted' event
-      mynotifier.register('inserted', this.inserted);
-      mynotifier.register('updated', this.updated);
+      // Register this.inserted to listen 'inserted' event.
+      mynotifier.register('inserted', this.onInserted);
+      mynotifier.register('updated', this.onUpdated);
     }
   }
 
-  // Listeners may be unregistered in componentWillUnmount
+  // Listeners may be unregistered in componentWillUnmount (recommended).
   componentWillUnmount() {
     const { mynotifier } = this.props;
     if (mynotifier) {
-      notifier.unregister('inserted', this.inserted);
-      notifier.unregister('updated', this.updated);
+      mynotifier.unregister('inserted', this.onInserted);
+      mynotifier.unregister('updated', this.onUpdated);
     }
   }
 
-  // Parameter list should match the response sent from the server
-  inserted = (target, id) => {
-    // Handle inserted event
+  // Parameter list should match the response sent from the server.
+  onInserted = (target, id) => {
+    // Handle inserted event ...
   }
 
-  updated = (target, id) =>  {
-    // Handle updated event
+  onUpdated = (target, id) =>  {
+    // Handle updated event ...
   }
 
   // ... 
+
+  render() {
+    // Passing the hub proxy from this.props to child component allows
+    // also the child component to register its own listeners.
+    const { ...passThroughProps } = this.props;
+    return (<ChildComponent
+      {...passThroughProps} />);
+  }
 }
 
 MyComponent.propTypes = {
-  // PropType for the hub proxy
+  // PropType for the hub proxy.
   mynotifier: hubShape,
 };
 
 export default injectSignalR(MyComponent, {
   hubName: 'mynotifier',
+  // Either a string containing the server url or 
+  // a function getting the server url from the state.
   baseAddress: (state) => state.configuration.server,
 });
 ```
