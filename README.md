@@ -28,6 +28,7 @@ Also you need to configure sass loader, since all the styles are in sass format.
 | accessTokenFactory       | func             |                          | Method for getting an access token                       |
 | signalrPath              | string           | 'signalr'                | Path to signalr hubs                                     |
 | controller               | string           | &lt;hubName&gt;          | Name of the controller (if different from hubName)       |
+| retries                  | integer          | 3                        | Number of retries to connect after a failure             |
 
 #### Methods in hub proxy
 | Method                       | Parameters                        | Description                              |
@@ -38,6 +39,8 @@ Also you need to configure sass loader, since all the styles are in sass format.
 | unregister(event, listener)  | event: string, listener: func     | Unregisters a listener for an event      |
 
 ### Code example
+
+#### Injecting signalr HOC to a component
 ```jsx
 import React from 'react';
 import { injectSignalR, hubShape } from '@opuscapita/react-signalr';
@@ -46,13 +49,44 @@ class MyComponent extends React.Component {
 
   // ... 
 
+  render() {
+    // Passing the hub proxy from this.props to child component(s) allows
+    // also the child component(s) to register its (their) own listeners.
+    const { ...passThroughProps } = this.props;
+    return (<ChildComponent
+      {...passThroughProps} />);
+  }
+}
+
+MyComponent.propTypes = {
+  // PropType for the hub proxy.
+  mynotifier: hubShape,
+};
+
+export default injectSignalR(MyComponent, {
+  // Defines both the last part of the route to the hub,
+  // and also the key of the hub proxy in this.props.
+  // In this case it hub proxy is found in this.props.mynotifier.
+  hubName: 'mynotifier',
+  // Either a string containing the server url or 
+  // a function getting the server url from the state.
+  baseAddress: (state) => state.configuration.server,
+});
+```
+
+#### Registering and unregistering listeners
+```jsx
+class MyComponent extends React.Component {
+  // ...
+
   // Listeners may be registered in componentDidMount (recommended).
   componentDidMount() {
     // Hub proxy is found in this.props.
     const { mynotifier } = this.props;
     if (mynotifier) {
-      // Register this.inserted to listen 'inserted' event.
+      // Register this.onInserted to listen 'inserted' event.
       mynotifier.register('inserted', this.onInserted);
+      // Register this.onUpdated to listen 'updated' event.
       mynotifier.register('updated', this.onUpdated);
     }
   }
@@ -61,7 +95,9 @@ class MyComponent extends React.Component {
   componentWillUnmount() {
     const { mynotifier } = this.props;
     if (mynotifier) {
+      // Unregister this.onInserted from listening to 'inserted' event.
       mynotifier.unregister('inserted', this.onInserted);
+      // Unregister this.onUpdated from listening to 'updated' event.
       mynotifier.unregister('updated', this.onUpdated);
     }
   }
@@ -75,26 +111,26 @@ class MyComponent extends React.Component {
     // Handle updated event ...
   }
 
-  // ... 
-
-  render() {
-    // Passing the hub proxy from this.props to child component allows
-    // also the child component to register its own listeners.
-    const { ...passThroughProps } = this.props;
-    return (<ChildComponent
-      {...passThroughProps} />);
-  }
+  // ...
 }
+```
 
-MyComponent.propTypes = {
-  // PropType for the hub proxy.
-  mynotifier: hubShape,
-};
+#### Invoking controller or sending data to it
+```jsx
+class MyComponent extends React.Component {
+  // ...
 
-export default injectSignalR(MyComponent, {
-  hubName: 'mynotifier',
-  // Either a string containing the server url or 
-  // a function getting the server url from the state.
-  baseAddress: (state) => state.configuration.server,
-});
+  invoke() {
+    // Requests '<baseAddress>/<controller>/target/123' with GET
+    this.props.mynotifier.invoke('target', 123);
+  }
+
+  send(data) {
+    // Requests '<baseAddress>/<controller>/target' with POST 
+    // and the JS object `data` as payload in JSON format
+    this.props.mynotifier.send('target', data);
+  }
+
+  // ...
+}
 ```

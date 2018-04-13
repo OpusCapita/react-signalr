@@ -156,6 +156,7 @@ const baseConfig = {
   },
   // Add your peer dependencies here to avoid bundling them to build
   externals: {
+    '@aspnet/signalr-client': '@aspnet/signalr-client',
     axios: 'axios',
     react: {
       root: 'React',
