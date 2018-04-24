@@ -25,7 +25,7 @@ Also you need to configure sass loader, since all the styles are in sass format.
 | ------------------------ | ---------------- | ------------------------ | -------------------------------------------------------- |
 | hubName                  | string           | required                 | Name of the signalr hub                                  |
 | baseAddress              | string \| func   | required                 | Base address for signalr server                          |
-| accessTokenFactory       | func             |                          | Method for getting an access token                       |
+| accessToken              | string \| func   |                          | Access token for authorization on the server             |
 | signalrPath              | string           | 'signalr'                | Path to signalr hubs                                     |
 | controller               | string           | &lt;hubName&gt;          | Name of the controller (if different from hubName)       |
 | retries                  | integer          | 3                        | Number of retries to connect after a failure             |
@@ -68,9 +68,14 @@ export default injectSignalR(MyComponent, {
   // and also the key of the hub proxy in this.props.
   // In this case it hub proxy is found in this.props.mynotifier.
   hubName: 'mynotifier',
-  // Either a string containing the server url or 
-  // a function getting the server url from the state.
+  // Either 1) a string containing the server url, or 
+  // 2) a function getting the server url from the state (example).
   baseAddress: (state) => state.configuration.server,
+  // 1) A string containing the access token, or 
+  // 2) a function getting the access token from the state (example), or
+  // 3) a function using the state to return a function that 
+  // gets the access token.
+  accessToken: (state) => state.configuration.accessToken,
 });
 ```
 
