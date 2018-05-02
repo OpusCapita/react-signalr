@@ -157,7 +157,7 @@ const baseConfig = {
       axios: path.resolve('./node_modules/axios'),
       react: path.resolve('./node_modules/react'),
       'react-dom': path.resolve('./node_modules/react-dom'),
-    }
+    },
   },
   // Add your peer dependencies here to avoid bundling them to build
   externals: {

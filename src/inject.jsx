@@ -1,41 +1,70 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import axios from 'axios';
+import { bindActionCreators } from 'redux';
 import { connect } from 'react-redux';
 import { Map, Set } from 'immutable';
 import { HubConnection, TransportType } from '@aspnet/signalr-client';
-import { hubShape } from './types';
 
 function getDisplayName(Component) {
   return Component.displayName || Component.name || 'Component';
 }
 
-export default function injectSignalR(WrappedComponent, 
-  options = { 
-    hubName: '', 
-    baseAddress: undefined, 
-    accessToken: undefined, 
-    signalrPath: 'signalr', 
+export default function injectSignalR(
+  WrappedComponent,
+  options = {
+    hubName: '',
+    baseAddress: undefined,
+    accessToken: undefined,
+    signalrPath: 'signalr',
     controller: '',
-    retries: 3
-  }) {
-
-  const getAccessToken = () => {
-    const { Authorization } = axios.defaults.headers.common;
-    return Authorization ? Authorization.replace(/^(bearer )?/i, '') : Authorization;
-  }
-
+    retries: 3,
+  },
+) {
   const {
     hubName = '',
     baseAddress = 'http://localhost:5555',
     accessToken = null,
     signalrPath = 'signalr',
-    retries = 3
+    retries = 3,
   } = options;
   const { controller = hubName } = options;
 
+  const getValueFromState = (state, source) => {
+    if (typeof source === 'function') {
+      return source(state);
+    } else if (typeof source === 'string') {
+      return source;
+    }
+    return '';
+  };
+
+  const invokeController = (address, target, data = undefined) => {
+    const urlBase = `${address}/${controller}/${target}`;
+    const url = data ? `${urlBase}/${data}` : urlBase;
+    return axios.get(url)
+      .catch((err) => {
+        console.error(`Error: Invoking ${controller} failed.\n\n${err}`);
+      });
+  };
+
+  const sendToController = (address, targetMethod, data) => {
+    const url = `${address}/${controller}/${targetMethod}`;
+    const payload = data ? data.toJS() : null;
+    return axios.post(url, payload)
+      .catch((err) => {
+        console.error(`Error: Sending data to ${controller} failed.\n\n${err}`);
+      });
+  };
+
+  function accessTokenFactory() {
+    return (dispatch, getState) => {
+      const state = getState();
+      return getValueFromState(state, accessToken);
+    };
+  }
+
   class InjectSignalR extends React.PureComponent {
-   
     static WrappedComponent = WrappedComponent;
 
     constructor(props) {
@@ -46,118 +75,115 @@ export default function injectSignalR(WrappedComponent,
         active: undefined,
         moribund: undefined,
         retry: 0,
-        oldToken: undefined,
+        create: 0,
       };
     }
 
     componentWillMount() {
-      //console.debug(`${InjectSignalR.displayName}.componentWillMount`);
+      // console.debug(`${InjectSignalR.displayName}.componentWillMount`);
       this.hubProxy = {
         invoke: this.invoke,
         send: this.send,
         connectionId: undefined,
         register: this.registerListener,
         unregister: this.unregisterListener,
-      }
+      };
     }
 
     componentDidMount() {
-      //console.debug(`${InjectSignalR.displayName}.componentDidMount`);
+      // console.debug(`${InjectSignalR.displayName}.componentDidMount`);
       this.createHub();
-    }
-
-    componentWillUnmount() {
-      //console.debug(`${InjectSignalR.displayName}.componentWillUnmount`);
-      this.stopHub(this.state.hub, true);
     }
 
     componentWillUpdate(nextProps, nextState) {
       if (this.state.hub !== nextState.hub) {
-        //console.debug(`${InjectSignalR.displayName}.componentWillUpdate => hub`);
+        // console.debug(`${InjectSignalR.displayName}.componentWillUpdate => hub`);
         if (this.state.hub) this.stopHub(this.state.hub, false);
         if (nextState.hub) this.startHub(nextState.hub);
-        else this.createHub();
-      }
-      else if (!nextState.hub)
-        this.createHub();
-      else {
+        else this.createHub(nextState.create);
+      } else if (!nextState.hub) {
+        this.createHub(nextState.create);
+      } else {
         let { pending, moribund } = nextState;
-        if (!moribund) 
+        if (!moribund) {
           moribund = this.moribund || Map();
-        else if (this.moribund)
+        } else if (this.moribund) {
           moribund = moribund.mergeDeep(this.moribund);
+        }
         const moribundCount = moribund.reduce(this.count, 0);
         if (moribundCount) {
-          //console.debug(`${InjectSignalR.displayName}.componentWillUpdate => moribund [${moribundCount}]`);
+          // console.debug(`${InjectSignalR.displayName}
+          //   .componentWillUpdate => moribund [${moribundCount}]`);
           this.moribund = this.inactivateListeners(this.state.hub, moribund);
         }
-        if (!pending)
+        if (!pending) {
           pending = this.pending || Map();
-        else if (this.pending)
+        } else if (this.pending) {
           pending = pending.mergeDeep(this.pending);
+        }
         const pendingCount = pending.reduce(this.count, 0);
         if (pendingCount) {
-          //console.debug(`${InjectSignalR.displayName}.componentWillUpdate => pending [${pendingCount}]`);
+          // console.debug(`${InjectSignalR.displayName}
+          //   .componentWillUpdate => pending [${pendingCount}]`);
           this.pending = this.activateListeners(nextState.hub, pending);
         }
       }
     }
 
-    count(c, s) { return c + s.count(); }
+    componentWillUnmount() {
+      // console.debug(`${InjectSignalR.displayName}.componentWillUnmount`);
+      this.stopHub(this.state.hub, true);
+    }
 
-    createHub() {
-      //console.debug(`${InjectSignalR.displayName}.createHub`);
-      const { retry } = this.state;
+    count = (c, s) => c + s.count();
+
+    async createHub(curCreate) {
+      // console.debug(`${InjectSignalR.displayName}.createHub`);
+      const { retry, create } = this.state;
       if (retry > retries) {
         console.error(`Error: Ran out of retries for starting ${hubName}!`);
-        this.setState({ retry: 0 });
-      }
-      else {
-        const { baseAddress, accessToken } = this.props;
-        if (baseAddress && hubName) {
-          let hubAddress = baseAddress;
+        this.setState({ retry: 0, create: 0 });
+      } else {
+        const { baseUrl, signalrActions } = this.props;
+        if (baseUrl && hubName) {
+          let hubAddress = baseUrl;
           if (signalrPath) hubAddress = `${hubAddress}/${signalrPath}`;
-          hubAddress = `${hubAddress}/${hubName}`
+          hubAddress = `${hubAddress}/${hubName}`;
           // Here below is how things are done with ASP.NET Core 2.0 version
-          if (accessToken) {
-            if (typeof accessToken === 'function')
-              this.token = accessToken();
-            else if (typeof accessToken === 'string')
-              this.token = accessToken;
-            else
-              console.error(`Error: Unexpected type of accesstoken: ${typeof accessToken}`);
-            if (this.token) {
-              if (this.oldToken === this.token) {
-                this.setState({ hub: null });
-                return;
-              }
-              this.oldToken = undefined;
-              hubAddress = `${hubAddress}?access_token=${this.token}`;
+          this.token = signalrActions.accessTokenFactory();
+          if (this.token) {
+            if (this.oldToken === this.token) {
+              this.setState({ hub: null, create: (curCreate || create) + 1 });
+              return;
             }
+            this.oldToken = undefined;
+            hubAddress = `${hubAddress}?access_token=${this.token}`;
           }
           const hub = new HubConnection(hubAddress, { transport: TransportType.WebSockets });
           // Here below is how things should be done after upgrading to ASP.NET Core 2.1 version
-          //let accessTokenFactory = null;
-          //if (accessToken) {
-          //  if (typeof accessToken === 'function')
-          //    accessTokenFactory = accessToken;
-          //  else if (typeof accessToken === 'string')
-          //    accessTokenFactory = () => accessToken;
-          //  else
-          //    console.error(`Error: Unexpected type of accesstoken: ${typeof accessToken}`);
-          //}
-          //const hub = new HubConnection(hubAddress, { transport: TransportType.WebSockets, accessTokenFactory });
+          // this.token = signalrActions.accessTokenFactory();
+          // if (this.token) {
+          //   if (this.oldToken === this.token) {
+          //     this.setState({ hub: null, create: (curCreate || create) + 1 });
+          //     return;
+          //   }
+          //   this.oldToken = undefined;
+          // }
+          // const hub = new HubConnection(hubAddress, {
+          //   transport: TransportType.WebSockets,
+          //   accessTokenFactory: signalrActions.accessTokenFactory,
+          // });
           hub.onclose = this.handleError;
-          this.setState({ hub, retry: retry + 1 });
+          this.setState({ hub, retry: retry + 1, create: 0 });
         }
       }
     }
 
     startHub(hub) {
-      //console.debug(`${InjectSignalR.displayName}.startHub`);
-      if (hub)
+      // console.debug(`${InjectSignalR.displayName}.startHub`);
+      if (hub) {
         hub.start()
-          .then(res => {
+          .then(() => {
             const { connectionId } = hub.connection || {};
             this.hubProxy.connectionId = connectionId;
             const { pending, active } = this.state;
@@ -165,36 +191,35 @@ export default function injectSignalR(WrappedComponent,
             if (!this.active) this.active = active || Map();
             this.setState({ active: this.active, pending: this.pending, retry: 0 });
           })
-          .catch(err => {
+          .catch((err) => {
             console.warn(`Warning: Error while establishing connection to hub ${hubName}.\n\n${err}`);
             hub.stop();
             this.handleError(err);
           });
+      }
     }
 
     handleError = (err) => {
       const { response, statusCode } = err;
       const { status } = response || {};
-      switch (status || statusCode)
-      {
+      switch (status || statusCode) {
         case 500: break;
-        case 401: this.oldToken = this.token; //fall through
+        case 401: this.oldToken = this.token; // fall through
         default: this.setState({ hub: null }); break;
       }
     }
 
     stopHub(hub, clear) {
-      //console.debug(`${InjectSignalR.displayName}.stopHub`);
+      // console.debug(`${InjectSignalR.displayName}.stopHub`);
       if (hub) {
-        if (clear)
+        if (clear) {
           // Clear pending
           this.pending = undefined;
-        else {
           // Merge active to pending
-          if (!this.pending)
-            this.pending = this.state.active;
-          else if (this.state.active)
-            this.pending = this.pending.mergeDeep(this.state.active);
+        } else if (!this.pending) {
+          this.pending = this.state.active;
+        } else if (this.state.active) {
+          this.pending = this.pending.mergeDeep(this.state.active);
         }
         hub.stop();
         this.active = undefined;
@@ -203,7 +228,8 @@ export default function injectSignalR(WrappedComponent,
     }
 
     registerListener = (name, handler) => {
-      //console.debug(`${InjectSignalR.displayName}.registerListener(${name}, ${handler.name || '<handler>'}(...))`);
+      // console.debug(`${InjectSignalR.displayName}
+      //   .registerListener(${name}, ${handler.name || '<handler>'}(...))`);
       const { pending, active, moribund } = this.state;
       // Remove listener from moribund listeners
       if (!this.moribund) this.moribund = moribund || Map();
@@ -219,15 +245,18 @@ export default function injectSignalR(WrappedComponent,
       if (!existingActive.has(handler)) {
         if (!this.pending) this.pending = pending || Map();
         const existingPending = this.pending.getIn([name], Set());
-        if (!existingPending.has(handler)) 
+        if (!existingPending.has(handler)) {
           this.pending = this.pending.setIn([name], existingPending.add(handler));
+        }
       }
-      if (this.pending !== pending || this.moribund !== moribund)
+      if (this.pending !== pending || this.moribund !== moribund) {
         this.setState({ pending: this.pending, moribund: this.moribund });
+      }
     }
 
     unregisterListener = (name, handler) => {
-      //console.debug(`${InjectSignalR.displayName}.unregisterListener(${name}, ${handler.name || '<handler>'}(...))`);
+      // console.debug(`${InjectSignalR.displayName}
+      //   .unregisterListener(${name}, ${handler.name || '<handler>'}(...))`);
       const { pending, active, moribund } = this.state;
       // Remove listener from pending listeners
       if (!this.pending) this.pending = pending || Map();
@@ -244,26 +273,33 @@ export default function injectSignalR(WrappedComponent,
       if (existingActive.has(handler)) {
         if (!this.moribund) this.moribund = moribund || Map();
         const existingMoribund = this.moribund.getIn([name], Set());
-        if (!existingMoribund.has(handler))
+        if (!existingMoribund.has(handler)) {
           this.moribund = this.moribund.setIn([name], existingMoribund.add(handler));
+        }
       }
-      if (this.pending !== pending || this.moribund !== moribund)
+      if (this.pending !== pending || this.moribund !== moribund) {
         this.setState({ pending: this.pending, moribund: this.moribund });
+      }
     }
 
-    activateListeners(hub, pending) {
-      //console.debug(`${InjectSignalR.displayName}.activateListeners([${(pending ? pending.reduce(this.count, 0) : 0)}])`);
-      if (hub && pending) {
+    activateListeners(hub, pendingParam) {
+      // console.debug(`${InjectSignalR.displayName}
+      //   .activateListeners([${(pending ? pending.reduce(this.count, 0) : 0)}])`);
+      let pending = pendingParam;
+      if (hub && pendingParam) {
         const { connection } = hub;
         if (connection && connection.connectionState === 2) {
           const { active } = this.state;
           if (!this.active) this.active = active || Map();
-          if (this.active.reduce(this.count, 0))
-            pending = pending.mapEntries(([name, handlers]) => {
+          if (this.active.reduce(this.count, 0)) {
+            pending = pending.mapEntries(([name, curHandlers]) => {
               const existing = this.active.getIn([name]);
-              if (existing) handlers = handlers.filterNot(handler => existing.has(handler))
+              const handlers = existing
+                ? curHandlers.filterNot(handler => existing.has(handler))
+                : curHandlers;
               return [name, handlers];
             });
+          }
           pending.mapEntries(([name, handlers]) =>
             handlers.map(handler => hub.on(name, handler)));
           this.active = this.active.mergeDeep(pending);
@@ -275,15 +311,18 @@ export default function injectSignalR(WrappedComponent,
     }
 
     inactivateListeners(hub, moribund) {
-      //console.debug(`${InjectSignalR.displayName}.inactivateListeners([${(moribund ? moribund.reduce(this.count, 0) : 0)}])`);
+      // console.debug(`${InjectSignalR.displayName}
+      //   .inactivateListeners([${(moribund ? moribund.reduce(this.count, 0) : 0)}])`);
       if (hub && moribund) {
         moribund.mapEntries(([name, handlers]) =>
           handlers.map(handler => hub.off(name, handler)));
         const { active } = this.state;
         if (!this.active) this.active = active || Map();
-        this.active = this.active.mapEntries(([name, handlers]) => {
+        this.active = this.active.mapEntries(([name, curHandlers]) => {
           const removable = moribund.getIn([name]);
-          if (removable) handlers = handlers.filterNot(handler => removable.has(handler))
+          const handlers = removable
+            ? curHandlers.filterNot(handler => removable.has(handler))
+            : curHandlers;
           return [name, handlers];
         });
         this.setState({ active: this.active, moribund: undefined });
@@ -293,74 +332,42 @@ export default function injectSignalR(WrappedComponent,
     }
 
     invoke = (target, data) => {
-      invokeController(this.props.baseAddress, target, data);
+      invokeController(this.props.baseUrl, target, data);
     }
 
     send = (target, data) => {
-      sendToController(this.props.baseAddress, target, data);
+      sendToController(this.props.baseUrl, target, data);
     }
 
     render() {
-      const { baseAddress, accessToken, ...passThroughProps } = this.props;
+      const { baseUrl, signalrActions, ...passThroughProps } = this.props;
       const hubProp = { [hubName]: this.hubProxy };
       return (
         <WrappedComponent
           {...passThroughProps}
           {...hubProp}
         />
-      )
+      );
     }
-  }
-
-  const invokeController = (baseAddress, target, data = undefined) => {
-    const urlBase = `${baseAddress}/${controller}/${target}`;
-    const url = data ? `${urlBase}/${data}` : urlBase;
-    return axios.get(url)
-      .catch(err => {
-        console.error(`Error: Invoking ${controller} failed.\n\n${err}`);
-      });
-  }
-
-  const sendToController = (baseAddress, targetMethod, data) => {
-    const url = `${baseAddress}/${controller}/${targetMethod}`;
-    const payload = data ? data.toJS() : null;
-    return axios.post(url, payload)
-      .catch(err => {
-        console.error(`Error: Sending data to ${controller} failed.\n\n${err}`);
-      });
   }
 
   InjectSignalR.displayName = `InjectSignalR(${getDisplayName(WrappedComponent)})`;
 
   InjectSignalR.propTypes = {
-    baseAddress: PropTypes.string.isRequired,
-    accessToken: PropTypes.oneOfType([
-      PropTypes.string,
-      PropTypes.func
-    ]),
+    baseUrl: PropTypes.string.isRequired,
+    signalrActions: PropTypes.shape({
+      getAccessToken: PropTypes.func,
+    }).isRequired,
   };
 
-  const mapStateToProps = (state, props) => {
-    let actualBaseAddress = '';
-    if (typeof baseAddress === 'function')
-      actualBaseAddress = baseAddress(state);
-    else if (typeof baseAddress === 'string')
-      actualBaseAddress = baseAddress;
-    if (!actualBaseAddress)
-      throw new Error('Missing required property baseAddress!');
+  const mapDispatchToProps = dispatch => ({
+    signalrActions: bindActionCreators({ accessTokenFactory }, dispatch),
+  });
 
-    let actualAccessToken = '';
-    if (typeof accessToken === 'function')
-     actualAccessToken = accessToken(state);
-    else if (typeof accessToken === 'string')
-     actualAccessToken = accessToken;
+  const mapStateToProps = (state) => {
+    const baseUrl = getValueFromState(state, baseAddress);
+    return { baseUrl };
+  };
 
-    return {
-      baseAddress: actualBaseAddress,
-      accessToken: actualAccessToken,
-    }
-  }
-
-  return connect(mapStateToProps)(InjectSignalR);
-
-};
+  return connect(mapStateToProps, mapDispatchToProps)(InjectSignalR);
+}
