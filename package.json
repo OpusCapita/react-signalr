@@ -5,7 +5,7 @@
   "private": false,
   "license": "MIT",
   "description": "OpusCapita react signalr",
-  "main": "lib/",
+  "main": "lib/umd/react-signalr.js",
   "cjs": "lib/cjs/react-signalr.js",
   "es": "lib/es/react-signalr.js",
   "scripts": {
