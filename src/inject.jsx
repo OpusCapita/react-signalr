@@ -4,7 +4,7 @@ import axios from 'axios';
 import { bindActionCreators } from 'redux';
 import { connect } from 'react-redux';
 import { Map, Set } from 'immutable';
-import { HubConnection, TransportType } from '@aspnet/signalr-client';
+import { HubConnectionBuilder, HttpTransportType } from '@aspnet/signalr';
 
 function getDisplayName(Component) {
   return Component.displayName || Component.name || 'Component';
@@ -149,30 +149,24 @@ export default function injectSignalR(
           let hubAddress = baseUrl;
           if (signalrPath) hubAddress = `${hubAddress}/${signalrPath}`;
           hubAddress = `${hubAddress}/${hubName}`;
-          // Here below is how things are done with ASP.NET Core 2.0 version
           this.token = signalrActions.accessTokenFactory();
           if (this.token) {
             if (this.oldToken === this.token) {
-              this.setState({ hub: null, create: (curCreate || create) + 1 });
+              if ((curCreate || create) > retries) {
+                console.warn('Warning: Unable to get up-to-date access token.');
+              } else {
+                this.setState({ hub: null, create: (curCreate || create) + 1 });
+              }
               return;
             }
             this.oldToken = undefined;
-            hubAddress = `${hubAddress}?access_token=${this.token}`;
           }
-          const hub = new HubConnection(hubAddress, { transport: TransportType.WebSockets });
-          // Here below is how things should be done after upgrading to ASP.NET Core 2.1 version
-          // this.token = signalrActions.accessTokenFactory();
-          // if (this.token) {
-          //   if (this.oldToken === this.token) {
-          //     this.setState({ hub: null, create: (curCreate || create) + 1 });
-          //     return;
-          //   }
-          //   this.oldToken = undefined;
-          // }
-          // const hub = new HubConnection(hubAddress, {
-          //   transport: TransportType.WebSockets,
-          //   accessTokenFactory: signalrActions.accessTokenFactory,
-          // });
+          const hub = new HubConnectionBuilder()
+            .withUrl(hubAddress, {
+              transport: HttpTransportType.WebSockets,
+              accessTokenFactory: () => this.token,
+            })
+            .build();
           hub.onclose = this.handleError;
           this.setState({ hub, retry: retry + 1, create: 0 });
         }
@@ -184,8 +178,6 @@ export default function injectSignalR(
       if (hub) {
         hub.start()
           .then(() => {
-            const { connectionId } = hub.connection || {};
-            this.hubProxy.connectionId = connectionId;
             const { pending, active } = this.state;
             if (!this.pending) this.pending = pending || Map();
             if (!this.active) this.active = active || Map();
@@ -288,7 +280,7 @@ export default function injectSignalR(
       let pending = pendingParam;
       if (hub && pendingParam) {
         const { connection } = hub;
-        if (connection && connection.connectionState === 2) {
+        if (connection && connection.connectionState === 1) {
           const { active } = this.state;
           if (!this.active) this.active = active || Map();
           if (this.active.reduce(this.count, 0)) {
