@@ -1,7 +1,7 @@
 {
   "author": "OpusCapita (www.opuscapita.com)",
   "name": "@opuscapita/react-signalr",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": false,
   "license": "MIT",
   "description": "OpusCapita react signalr",
@@ -93,11 +93,12 @@
     "write-file-webpack-plugin": "4.2.0"
   },
   "dependencies": {
-    "@aspnet/signalr": "1.0.0-rc1-final",
+    "@aspnet/signalr": "1.0.0",
     "@opuscapita/oc-cm-common-styles": "2.0.4",
     "axios": "0.16.2",
     "react-redux": "5.0.7",
-    "redux": "3.7.2"
+    "redux": "3.7.2",
+    "tslib": "1.9.2"
   },
   "repository": {
     "type": "git",
