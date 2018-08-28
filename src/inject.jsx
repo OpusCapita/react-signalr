@@ -6,21 +6,9 @@ import { connect } from 'react-redux';
 import { Map, Set } from 'immutable';
 import { HubConnectionBuilder, HttpTransportType } from '@aspnet/signalr';
 
-function getDisplayName(Component) {
-  return Component.displayName || Component.name || 'Component';
-}
+const getDisplayName = Component => Component.displayName || Component.name || 'Component';
 
-export default function injectSignalR(
-  WrappedComponent,
-  options = {
-    hubName: '',
-    baseAddress: undefined,
-    accessToken: undefined,
-    signalrPath: 'signalr',
-    controller: '',
-    retries: 3,
-  },
-) {
+const injectSignalR = (options) => (WrappedComponent) => {
   const {
     hubName = '',
     baseAddress = 'http://localhost:5555',
@@ -29,40 +17,6 @@ export default function injectSignalR(
     retries = 3,
   } = options;
   const { controller = hubName } = options;
-
-  const getValueFromState = (state, source) => {
-    if (typeof source === 'function') {
-      return source(state);
-    } else if (typeof source === 'string') {
-      return source;
-    }
-    return '';
-  };
-
-  const invokeController = (address, target, data = undefined) => {
-    const urlBase = `${address}/${controller}/${target}`;
-    const url = data ? `${urlBase}/${data}` : urlBase;
-    return axios.get(url)
-      .catch((err) => {
-        console.error(`Error: Invoking ${controller} failed.\n\n${err}`);
-      });
-  };
-
-  const sendToController = (address, targetMethod, data) => {
-    const url = `${address}/${controller}/${targetMethod}`;
-    const payload = data ? data.toJS() : null;
-    return axios.post(url, payload)
-      .catch((err) => {
-        console.error(`Error: Sending data to ${controller} failed.\n\n${err}`);
-      });
-  };
-
-  function accessTokenFactory() {
-    return (dispatch, getState) => {
-      const state = getState();
-      return getValueFromState(state, accessToken);
-    };
-  }
 
   class InjectSignalR extends React.PureComponent {
     static WrappedComponent = WrappedComponent;
@@ -80,10 +34,9 @@ export default function injectSignalR(
     }
 
     componentWillMount() {
-      // console.debug(`${InjectSignalR.displayName}.componentWillMount`);
       this.hubProxy = {
-        invoke: this.invoke,
-        send: this.send,
+        send: this.sendToController,
+        invoke: this.invokeController,
         connectionId: undefined,
         register: this.registerListener,
         unregister: this.unregisterListener,
@@ -91,16 +44,18 @@ export default function injectSignalR(
     }
 
     componentDidMount() {
-      // console.debug(`${InjectSignalR.displayName}.componentDidMount`);
       this.createHub();
+      console.log(this.props);
     }
 
     componentWillUpdate(nextProps, nextState) {
       if (this.state.hub !== nextState.hub) {
-        // console.debug(`${InjectSignalR.displayName}.componentWillUpdate => hub`);
         if (this.state.hub) this.stopHub(this.state.hub, false);
-        if (nextState.hub) this.startHub(nextState.hub);
-        else this.createHub(nextState.create);
+        if (nextState.hub) {
+          this.startHub(nextState.hub);
+        } else {
+          this.createHub(nextState.create);
+        }
       } else if (!nextState.hub) {
         this.createHub(nextState.create);
       } else {
@@ -112,8 +67,6 @@ export default function injectSignalR(
         }
         const moribundCount = moribund.reduce(this.count, 0);
         if (moribundCount) {
-          // console.debug(`${InjectSignalR.displayName}
-          //   .componentWillUpdate => moribund [${moribundCount}]`);
           this.moribund = this.inactivateListeners(this.state.hub, moribund);
         }
         if (!pending) {
@@ -123,39 +76,59 @@ export default function injectSignalR(
         }
         const pendingCount = pending.reduce(this.count, 0);
         if (pendingCount) {
-          // console.debug(`${InjectSignalR.displayName}
-          //   .componentWillUpdate => pending [${pendingCount}]`);
           this.pending = this.activateListeners(nextState.hub, pending);
         }
       }
     }
 
     componentWillUnmount() {
-      // console.debug(`${InjectSignalR.displayName}.componentWillUnmount`);
       this.stopHub(this.state.hub, true);
     }
 
     count = (c, s) => c + s.count();
 
+    sendToController = (target, data = null) => {
+      const url = `${this.props.baseUrl}/${controller}/${target}`;
+      const payload = data ? data.toJS() : null;
+      return axios.post(url, payload)
+        .catch((err) => {
+          console.error(`Error: Sending data to ${controller} failed.\n\n${err}`);
+        });
+    };
+
+    invokeController = (targetMethod, data = null) => {
+      const urlBase = `${this.props.baseUrl}/${controller}/${targetMethod}`;
+      const url = data ? `${urlBase}/${data}` : urlBase;
+      return axios.get(url)
+        .catch((err) => {
+          console.error(`Error: Invoking ${controller} failed.\n\n${err}`);
+        });
+    };
+
     async createHub(curCreate) {
-      // console.debug(`${InjectSignalR.displayName}.createHub`);
       const { retry, create } = this.state;
       if (retry > retries) {
         console.error(`Error: Ran out of retries for starting ${hubName}!`);
-        this.setState({ retry: 0, create: 0 });
+        this.setState({
+          retry: 0,
+          create: 0,
+        });
       } else {
         const { baseUrl, signalrActions } = this.props;
         if (baseUrl && hubName) {
           let hubAddress = baseUrl;
           if (signalrPath) hubAddress = `${hubAddress}/${signalrPath}`;
           hubAddress = `${hubAddress}/${hubName}`;
-          this.token = signalrActions.accessTokenFactory();
+          this.token = signalrActions.accessTokenFactory(accessToken);
           if (this.token) {
             if (this.oldToken === this.token) {
               if ((curCreate || create) > retries) {
                 console.warn('Warning: Unable to get up-to-date access token.');
               } else {
-                this.setState({ hub: null, create: (curCreate || create) + 1 });
+                this.setState({
+                  hub: null,
+                  create: (curCreate || create) + 1,
+                });
               }
               return;
             }
@@ -168,20 +141,27 @@ export default function injectSignalR(
             })
             .build();
           hub.onclose = this.handleError;
-          this.setState({ hub, retry: retry + 1, create: 0 });
+          this.setState({
+            hub,
+            retry: retry + 1,
+            create: 0,
+          });
         }
       }
     }
 
     startHub(hub) {
-      // console.debug(`${InjectSignalR.displayName}.startHub`);
       if (hub) {
         hub.start()
           .then(() => {
             const { pending, active } = this.state;
             if (!this.pending) this.pending = pending || Map();
             if (!this.active) this.active = active || Map();
-            this.setState({ active: this.active, pending: this.pending, retry: 0 });
+            this.setState({
+              active: this.active,
+              pending: this.pending,
+              retry: 0,
+            });
           })
           .catch((err) => {
             console.warn(`Warning: Error while establishing connection to hub ${hubName}.\n\n${err}`);
@@ -195,14 +175,17 @@ export default function injectSignalR(
       const { response, statusCode } = err;
       const { status } = response || {};
       switch (status || statusCode) {
-        case 500: break;
-        case 401: this.oldToken = this.token; // fall through
-        default: this.setState({ hub: null }); break;
+        case 500:
+          break;
+        case 401:
+          this.oldToken = this.token; // fall through
+        default:
+          this.setState({ hub: null });
+          break;
       }
-    }
+    };
 
     stopHub(hub, clear) {
-      // console.debug(`${InjectSignalR.displayName}.stopHub`);
       if (hub) {
         if (clear) {
           // Clear pending
@@ -215,13 +198,14 @@ export default function injectSignalR(
         }
         hub.stop();
         this.active = undefined;
-        this.setState({ pending: this.pending, active: this.active });
+        this.setState({
+          pending: this.pending,
+          active: this.active,
+        });
       }
     }
 
     registerListener = (name, handler) => {
-      // console.debug(`${InjectSignalR.displayName}
-      //   .registerListener(${name}, ${handler.name || '<handler>'}(...))`);
       const { pending, active, moribund } = this.state;
       // Remove listener from moribund listeners
       if (!this.moribund) this.moribund = moribund || Map();
@@ -242,13 +226,14 @@ export default function injectSignalR(
         }
       }
       if (this.pending !== pending || this.moribund !== moribund) {
-        this.setState({ pending: this.pending, moribund: this.moribund });
+        this.setState({
+          pending: this.pending,
+          moribund: this.moribund,
+        });
       }
-    }
+    };
 
     unregisterListener = (name, handler) => {
-      // console.debug(`${InjectSignalR.displayName}
-      //   .unregisterListener(${name}, ${handler.name || '<handler>'}(...))`);
       const { pending, active, moribund } = this.state;
       // Remove listener from pending listeners
       if (!this.pending) this.pending = pending || Map();
@@ -270,13 +255,14 @@ export default function injectSignalR(
         }
       }
       if (this.pending !== pending || this.moribund !== moribund) {
-        this.setState({ pending: this.pending, moribund: this.moribund });
+        this.setState({
+          pending: this.pending,
+          moribund: this.moribund,
+        });
       }
-    }
+    };
 
     activateListeners(hub, pendingParam) {
-      // console.debug(`${InjectSignalR.displayName}
-      //   .activateListeners([${(pending ? pending.reduce(this.count, 0) : 0)}])`);
       let pending = pendingParam;
       if (hub && pendingParam) {
         const { connection } = hub;
@@ -295,7 +281,10 @@ export default function injectSignalR(
           pending.mapEntries(([name, handlers]) =>
             handlers.map(handler => hub.on(name, handler)));
           this.active = this.active.mergeDeep(pending);
-          this.setState({ pending: undefined, active: this.active });
+          this.setState({
+            pending: undefined,
+            active: this.active,
+          });
           return undefined;
         }
       }
@@ -303,8 +292,6 @@ export default function injectSignalR(
     }
 
     inactivateListeners(hub, moribund) {
-      // console.debug(`${InjectSignalR.displayName}
-      //   .inactivateListeners([${(moribund ? moribund.reduce(this.count, 0) : 0)}])`);
       if (hub && moribund) {
         moribund.mapEntries(([name, handlers]) =>
           handlers.map(handler => hub.off(name, handler)));
@@ -317,22 +304,17 @@ export default function injectSignalR(
             : curHandlers;
           return [name, handlers];
         });
-        this.setState({ active: this.active, moribund: undefined });
+        this.setState({
+          active: this.active,
+          moribund: undefined,
+        });
         return undefined;
       }
       return moribund;
     }
 
-    invoke = (target, data) => {
-      invokeController(this.props.baseUrl, target, data);
-    }
-
-    send = (target, data) => {
-      sendToController(this.props.baseUrl, target, data);
-    }
-
     render() {
-      const { baseUrl, signalrActions, ...passThroughProps } = this.props;
+      const { ...passThroughProps } = this.props;
       const hubProp = { [hubName]: this.hubProxy };
       return (
         <WrappedComponent
@@ -352,8 +334,19 @@ export default function injectSignalR(
     }).isRequired,
   };
 
+  const getValueFromState = (state, source) => {
+    if (typeof source === 'function') return source(state);
+    if (typeof source === 'string') return source;
+    return '';
+  };
+
   const mapDispatchToProps = dispatch => ({
-    signalrActions: bindActionCreators({ accessTokenFactory }, dispatch),
+    signalrActions: bindActionCreators({
+      accessTokenFactory: () => (dispatcher, getState) => {
+        const state = getState();
+        return getValueFromState(state, accessToken);
+      },
+    }, dispatch),
   });
 
   const mapStateToProps = (state) => {
@@ -362,4 +355,6 @@ export default function injectSignalR(
   };
 
   return connect(mapStateToProps, mapDispatchToProps)(InjectSignalR);
-}
+};
+
+export default injectSignalR;
