@@ -45,7 +45,6 @@ const injectSignalR = (options) => (WrappedComponent) => {
 
     componentDidMount() {
       this.createHub();
-      console.log(this.props);
     }
 
     componentWillUpdate(nextProps, nextState) {
@@ -56,8 +55,6 @@ const injectSignalR = (options) => (WrappedComponent) => {
         } else {
           this.createHub(nextState.create);
         }
-      } else if (!nextState.hub) {
-        this.createHub(nextState.create);
       } else {
         let { pending, moribund } = nextState;
         if (!moribund) {
