@@ -313,7 +313,7 @@ const injectSignalR = (options) => (WrappedComponent) => {
     }
 
     render() {
-      const { ...passThroughProps } = this.props;
+      const { baseUrl, signalrActions, ...passThroughProps } = this.props;
       const hubProp = { [hubName]: this.hubProxy };
       return (
         <WrappedComponent
