@@ -8,7 +8,7 @@ import { HubConnectionBuilder, HttpTransportType } from '@aspnet/signalr';
 
 const getDisplayName = Component => Component.displayName || Component.name || 'Component';
 
-const injectSignalR = (options) => (WrappedComponent) => {
+const injectSignalR = options => (WrappedComponent) => {
   const {
     hubName = '',
     baseAddress = 'http://localhost:5555',
