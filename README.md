@@ -45,7 +45,21 @@ Also you need to configure sass loader, since all the styles are in sass format.
 import React from 'react';
 import { injectSignalR, hubShape } from '@opuscapita/react-signalr';
 
-class MyComponent extends React.Component {
+@injectSignalR({
+  // Defines both the last part of the route to the hub,
+  // and also the key of the hub proxy in this.props.
+  // In this case it hub proxy is found in this.props.mynotifier.
+  hubName: 'mynotifier',
+  // Either 1) a string containing the server url, or 
+  // 2) a function getting the server url from the state (example).
+  baseAddress: (state) => state.configuration.server,
+  // 1) A string containing the access token, or 
+  // 2) a function getting the access token from the state (example), or
+  // 3) a function using the state to return a function that 
+  // gets the access token.
+  accessToken: (state) => state.configuration.accessToken,
+})
+export default class MyComponent extends React.Component {
 
   // ... 
 
@@ -63,20 +77,6 @@ MyComponent.propTypes = {
   mynotifier: hubShape,
 };
 
-export default injectSignalR(MyComponent, {
-  // Defines both the last part of the route to the hub,
-  // and also the key of the hub proxy in this.props.
-  // In this case it hub proxy is found in this.props.mynotifier.
-  hubName: 'mynotifier',
-  // Either 1) a string containing the server url, or 
-  // 2) a function getting the server url from the state (example).
-  baseAddress: (state) => state.configuration.server,
-  // 1) A string containing the access token, or 
-  // 2) a function getting the access token from the state (example), or
-  // 3) a function using the state to return a function that 
-  // gets the access token.
-  accessToken: (state) => state.configuration.accessToken,
-});
 ```
 
 #### Registering and unregistering listeners
