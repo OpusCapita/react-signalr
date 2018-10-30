@@ -4,6 +4,9 @@
 Higher-Order Component that provides a connection to a SignalR hub. This component adds a hub proxy, that 
 may be used to register and unregister event listeners, and also to invoke a hub controller and send data to it.
 
+This component is built using the [SignalR JavaScript client](https://github.com/aspnet/SignalR/tree/release/2.1/clients/ts/signalr) of 
+the [ASP.NET Core 2.1 Signalr](https://github.com/aspnet/SignalR/tree/release/2.1) product.
+
 ### Installation
 ```
 npm install @opuscapita/react-signalr --save
@@ -31,21 +34,36 @@ Also you need to configure sass loader, since all the styles are in sass format.
 | retries                  | integer          | 3                        | Number of retries to connect after a failure             |
 
 #### Methods in hub proxy
-| Method                       | Parameters                        | Description                              |
-| ---------------------------- | --------------------------------- | ---------------------------------------- |
-| invoke(target, query)        | target: string, query: string     | Invokes hub controller with GET          |
-| send(target, payload)        | target: string, payload: object   | Invokes hub controller with POST         |
-| register(event, listener)    | event: string, listener: func     | Registers a listener for an event        |
-| unregister(event, listener)  | event: string, listener: func     | Unregisters a listener for an event      |
+| Method                       | Parameters                        | Description                                    |
+| ---------------------------- | --------------------------------- | ---------------------------------------------- |
+| invoke(target, query)        | target: string, query: string     | Invokes hub controller with GET                |
+| send(target, payload)        | target: string, payload: object   | Invokes hub controller with POST               |
+| register(event, listener)    | event: string, listener: func     | Registers a listener for an event              |
+| unregister(event, listener)  | event: string, listener: func     | Unregisters a listener for an event            |
+| add(group)                   | group: string                     | Adds client to a named group<sup>1)</sup>      |
+| remove(group)                | group: string                     | Removes client from a named group<sup>1)</sup> |
+
+<sup>1)</sup> To be able to use group messaging the SignalR hub must implement two methods, `AddToGroup(string group)` and `RemoveFromGroup(string group)`, which respectively add and remove the client to and from the specified named group *(cf. [code example](#addingremoving-the-client-tofrom-a-named-group))*.
 
 ### Code example
 
 #### Injecting signalr HOC to a component
+
+##### As a HOC
 ```jsx
 import React from 'react';
 import { injectSignalR, hubShape } from '@opuscapita/react-signalr';
 
-@injectSignalR({
+class MyComponent extends React.Component {
+  // ... 
+}
+
+MyComponent.propTypes = {
+  // PropType for the hub proxy.
+  mynotifier: hubShape,
+};
+
+export default injectSignalR({
   // Defines both the last part of the route to the hub,
   // and also the key of the hub proxy in this.props.
   // In this case it hub proxy is found in this.props.mynotifier.
@@ -58,8 +76,32 @@ import { injectSignalR, hubShape } from '@opuscapita/react-signalr';
   // 3) a function using the state to return a function that 
   // gets the access token.
   accessToken: (state) => state.configuration.accessToken,
+})(MyComponent);
+```
+
+##### As a decorator
+```jsx
+import React from 'react';
+import { injectSignalR, hubShape } from '@opuscapita/react-signalr';
+
+@injectSignalR({
+  hubName: 'mynotifier',
+  baseAddress: (state) => state.configuration.server,
+  accessToken: (state) => state.configuration.accessToken,
 })
 export default class MyComponent extends React.Component {
+  // ... 
+}
+
+MyComponent.propTypes = {
+  // PropType for the hub proxy.
+  mynotifier: hubShape,
+};
+```
+
+#### Passing the hub proxy to child component(s)
+```jsx
+class MyComponent extends React.Component {
 
   // ... 
 
@@ -71,17 +113,12 @@ export default class MyComponent extends React.Component {
       {...passThroughProps} />);
   }
 }
-
-MyComponent.propTypes = {
-  // PropType for the hub proxy.
-  mynotifier: hubShape,
-};
-
 ```
 
 #### Registering and unregistering listeners
 ```jsx
 class MyComponent extends React.Component {
+
   // ...
 
   // Listeners may be registered in componentDidMount (recommended).
@@ -123,6 +160,7 @@ class MyComponent extends React.Component {
 #### Invoking controller or sending data to it
 ```jsx
 class MyComponent extends React.Component {
+
   // ...
 
   invoke() {
@@ -134,6 +172,42 @@ class MyComponent extends React.Component {
     // Requests '<baseAddress>/<controller>/target' with POST 
     // and the JS object `data` as payload in JSON format
     this.props.mynotifier.send('target', data);
+  }
+
+  // ...
+}
+```
+
+#### Adding/removing the client to/from a named group
+
+##### The SignalR hub
+```csharp
+public class MyNotifier : Hub
+{
+    // ...
+
+    public Task AddToGroup(string group)
+        => Groups.AddToGroupAsync(group);
+
+    public Task RemoveFromGroup(string group)
+        => Groups.RemoveFromGroupAsync(group);
+
+    // ...
+}
+```
+
+##### The client component
+```jsx
+class MyComponent extends React.Component {
+
+  // ...
+
+  add(group) {
+    this.props.mynotifier.add(group);
+  }
+
+  remove(group) {
+    this.props.mynotifier.remove(group);
   }
 
   // ...

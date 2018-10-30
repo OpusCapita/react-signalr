@@ -37,6 +37,8 @@ const injectSignalR = options => (WrappedComponent) => {
       this.hubProxy = {
         send: this.sendToController,
         invoke: this.invokeController,
+        add: this.addToGroup,
+        remove: this.removeFromGroup,
         connectionId: undefined,
         register: this.registerListener,
         unregister: this.unregisterListener,
@@ -85,6 +87,32 @@ const injectSignalR = options => (WrappedComponent) => {
     }
 
     count = (c, s) => c + s.count();
+
+    addToGroup = (group) => {
+      const { hub } = this.state;
+      if (hub) {
+        const { connection } = hub;
+        if (connection && connection.connectionState === 1) {
+          return hub.invoke("addToGroup", group)
+            .catch((err) => {
+              console.error(`Error: Adding client to group ${group} in ${hubName} failed.\n\n${err}`);
+            });
+        }
+      }
+    };
+
+    removeFromGroup = (group) => {
+      const { hub } = this.state;
+      if (hub) {
+        const { connection } = hub;
+        if (connection && connection.connectionState === 1) {
+          return hub.invoke("removeFromGroup", group)
+            .catch((err) => {
+              console.error(`Error: Removing client from group ${group} in ${hubName} failed.\n\n${err}`);
+            });
+        }
+      }
+    };
 
     sendToController = (target, data = null) => {
       const url = `${this.props.baseUrl}/${controller}/${target}`;
@@ -189,12 +217,14 @@ const injectSignalR = options => (WrappedComponent) => {
         if (clear) {
           // Clear pending
           this.pending = undefined;
+          this.removeFromGroup("");
           // Merge active to pending
         } else if (!this.pending) {
           this.pending = this.state.active;
         } else if (this.state.active) {
           this.pending = this.pending.mergeDeep(this.state.active);
         }
+
         hub.stop();
         this.active = undefined;
         this.setState({
