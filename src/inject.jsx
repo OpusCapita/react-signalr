@@ -93,7 +93,7 @@ const injectSignalR = options => (WrappedComponent) => {
       if (hub) {
         const { connection } = hub;
         if (connection && connection.connectionState === 1) {
-          return hub.invoke("addToGroup", group)
+          hub.invoke('addToGroup', group)
             .catch((err) => {
               console.error(`Error: Adding client to group ${group} in ${hubName} failed.\n\n${err}`);
             });
@@ -106,7 +106,7 @@ const injectSignalR = options => (WrappedComponent) => {
       if (hub) {
         const { connection } = hub;
         if (connection && connection.connectionState === 1) {
-          return hub.invoke("removeFromGroup", group)
+          hub.invoke('removeFromGroup', group)
             .catch((err) => {
               console.error(`Error: Removing client from group ${group} in ${hubName} failed.\n\n${err}`);
             });
@@ -217,7 +217,7 @@ const injectSignalR = options => (WrappedComponent) => {
         if (clear) {
           // Clear pending
           this.pending = undefined;
-          this.removeFromGroup("");
+          this.removeFromGroup('');
           // Merge active to pending
         } else if (!this.pending) {
           this.pending = this.state.active;
