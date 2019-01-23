@@ -307,8 +307,7 @@ const injectSignalR = options => (WrappedComponent) => {
               return [name, handlers];
             });
           }
-          pending.mapEntries(([name, handlers]) =>
-            handlers.map(handler => hub.on(name, handler)));
+          pending.mapEntries(([name, handlers]) => handlers.map(handler => hub.on(name, handler)));
           this.active = this.active.mergeDeep(pending);
           this.setState({
             pending: undefined,
@@ -322,8 +321,7 @@ const injectSignalR = options => (WrappedComponent) => {
 
     inactivateListeners(hub, moribund) {
       if (hub && moribund) {
-        moribund.mapEntries(([name, handlers]) =>
-          handlers.map(handler => hub.off(name, handler)));
+        moribund.mapEntries(([name, handlers]) => handlers.map(handler => hub.off(name, handler)));
         const { active } = this.state;
         if (!this.active) this.active = active || Map();
         this.active = this.active.mapEntries(([name, curHandlers]) => {
