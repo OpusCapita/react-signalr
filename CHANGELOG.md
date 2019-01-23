@@ -2,6 +2,9 @@
 
 * In general follow (https://docs.npmjs.com/getting-started/semantic-versioning) versioning.
 ## <next>
+* Package updates
+
+## 3.1.0
 * Implemented methods in hub proxy for adding and removing clients to and from named groups
 
 ## 3.0.0
