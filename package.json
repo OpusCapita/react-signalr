@@ -5,14 +5,14 @@
   "private": false,
   "license": "MIT",
   "description": "OpusCapita react signalr",
-  "main": "lib/umd/react-signalr.js",
-  "cjs": "lib/cjs/src/react-signalr.js",
-  "es": "lib/es/src/react-signalr.js",
+  "main": "lib/umd/index.js",
+  "cjs": "lib/cjs/index.js",
+  "es": "lib/es/react-signalr.js",
   "scripts": {
     "clean": "rimraf lib",
     "build": "npm-run-all clean build:*",
-    "build:cjs": "cross-env NODE_ENV=production BUILD_ENV=cjs babel src/react-signalr.js --out-dir lib/cjs --copy-files --source-maps inline",
-    "build:es": "cross-env NODE_ENV=production BUILD_ENV=es babel src/react-signalr.js --out-dir lib/es --copy-files --source-maps inline",
+    "build:cjs": "cross-env NODE_ENV=production BUILD_ENV=cjs babel src --out-dir lib/cjs --copy-files --source-maps inline",
+    "build:es": "cross-env NODE_ENV=production BUILD_ENV=es babel src --out-dir lib/es --copy-files --source-maps inline",
     "build:umd": "cross-env NODE_ENV=development BUILD_ENV=umd webpack",
     "build:umd-min": "cross-env NODE_ENV=production BUILD_ENV=umd webpack",
     "watch": "npm-run-all --parallel watch:*",
@@ -24,6 +24,9 @@
     "version": "npm run build && git add -A lib",
     "postversion": "git push && git push --tags"
   },
+  "files": [
+    "/lib"
+  ],
   "engines": {
     "node": ">=6.10.0",
     "npm": ">=5.4.0"
