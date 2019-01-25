@@ -6,8 +6,8 @@
   "license": "MIT",
   "description": "OpusCapita react signalr",
   "main": "lib/umd/react-signalr.js",
-  "cjs": "lib/cjs/react-signalr.js",
-  "es": "lib/es/react-signalr.js",
+  "cjs": "lib/cjs/src/react-signalr.js",
+  "es": "lib/es/src/react-signalr.js",
   "scripts": {
     "clean": "rimraf lib",
     "build": "npm-run-all clean build:*",

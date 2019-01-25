@@ -2,6 +2,7 @@
 
 * In general follow (https://docs.npmjs.com/getting-started/semantic-versioning) versioning.
 ## <next>
+* Fixed ejs/es package paths in package.json
 * Package updates
 
 ## 3.1.0
