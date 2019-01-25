@@ -15,7 +15,7 @@ const PATHS = {
   build: path.join(__dirname, 'lib', 'umd'),
   context: path.join(__dirname, 'src'),
   jsFileName: isProd ? `${libraryName}.min.js` : `${libraryName}.js`,
-  entry: path.join(__dirname, 'src', 'react-signalr.js'),
+  entry: path.join(__dirname, 'src', 'index.js'),
 };
 
 /*

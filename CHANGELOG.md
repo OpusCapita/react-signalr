@@ -3,6 +3,9 @@
 * In general follow (https://docs.npmjs.com/getting-started/semantic-versioning) versioning.
 ## <next>
 
+## 3.2.2
+* Rearranged src folder and removed .npmignore in order to fix npm related problems
+
 ## 3.2.1
 * Fixed ejs/es package paths in package.json
 
