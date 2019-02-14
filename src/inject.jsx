@@ -106,12 +106,13 @@ const injectSignalR = options => (WrappedComponent) => {
       if (hub) {
         const { connection } = hub;
         if (connection && connection.connectionState === 1) {
-          hub.invoke('removeFromGroup', group)
+          return hub.invoke('removeFromGroup', group)
             .catch((err) => {
               console.error(`Error: Removing client from group ${group} in ${hubName} failed.\n\n${err}`);
             });
         }
       }
+      return Promise.resolve();
     };
 
     sendToController = (target, data = null) => {
@@ -214,10 +215,12 @@ const injectSignalR = options => (WrappedComponent) => {
 
     stopHub(hub, clear) {
       if (hub) {
+        const promises = [];
+
         if (clear) {
           // Clear pending
           this.pending = undefined;
-          this.removeFromGroup('');
+          promises.push(this.removeFromGroup(''));
           // Merge active to pending
         } else if (!this.pending) {
           this.pending = this.state.active;
@@ -225,7 +228,10 @@ const injectSignalR = options => (WrappedComponent) => {
           this.pending = this.pending.mergeDeep(this.state.active);
         }
 
-        hub.stop();
+        Promise.all(promises).then(() => {
+          hub.stop();
+        });
+
         this.active = undefined;
         this.setState({
           pending: this.pending,
