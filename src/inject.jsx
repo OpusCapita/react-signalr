@@ -161,8 +161,10 @@ const injectSignalR = options => (WrappedComponent) => {
             }
             this.oldToken = undefined;
           }
+          console.log('skipping negotiation');
           const hub = new HubConnectionBuilder()
             .withUrl(hubAddress, {
+              skipNegotiation: true,
               transport: HttpTransportType.WebSockets,
               accessTokenFactory: () => this.token,
             })
