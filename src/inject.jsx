@@ -164,6 +164,7 @@ const injectSignalR = options => (WrappedComponent) => {
           }
           const hub = new HubConnectionBuilder()
             .withUrl(hubAddress, {
+              skipNegotiation: true,
               transport: HttpTransportType.WebSockets,
               accessTokenFactory: () => this.token,
             })
