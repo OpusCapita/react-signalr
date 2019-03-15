@@ -2,7 +2,7 @@
 
 * In general follow (https://docs.npmjs.com/getting-started/semantic-versioning) versioning.
 
-## <next>
+## 3.3.0
 * Configuration change: negotiation phase will be skipped from now on
 * Rearranged src folder and removed .npmignore in order to fix npm related problems
 * Fixed ejs/es package paths in package.json
