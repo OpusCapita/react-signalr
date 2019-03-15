@@ -1,7 +1,13 @@
 # Changelog
 
 * In general follow (https://docs.npmjs.com/getting-started/semantic-versioning) versioning.
+
 ## <next>
+* Configuration change: negotiation phase will be skipped from now on
+* Rearranged src folder and removed .npmignore in order to fix npm related problems
+* Fixed ejs/es package paths in package.json
+* Reverted to a previous version of @aspnet/signalr
+* Fixed a bug in stopHub fn.
 
 ## 3.2.2
 * Rearranged src folder and removed .npmignore in order to fix npm related problems
