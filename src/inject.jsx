@@ -168,6 +168,7 @@ const injectSignalR = options => (WrappedComponent) => {
               transport: HttpTransportType.WebSockets,
               accessTokenFactory: () => this.token,
             })
+            .withAutomaticReconnect()
             .build();
           hub.onclose = this.handleError;
           this.setState({

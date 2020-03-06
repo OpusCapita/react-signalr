@@ -2,6 +2,9 @@
 
 * In general follow (https://docs.npmjs.com/getting-started/semantic-versioning) versioning.
 
+## 4.0.0
+* Using hub's withAutomaticReconnect() for automatic reconnection (https://docs.microsoft.com/en-us/aspnet/core/release-notes/aspnetcore-3.0?view=aspnetcore-3.1)
+
 ## 3.3.0
 * Configuration change: negotiation phase will be skipped from now on
 * Rearranged src folder and removed .npmignore in order to fix npm related problems
